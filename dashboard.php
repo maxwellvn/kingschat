@@ -18,9 +18,6 @@ ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/error.log');
 
-// Include database connection
-require_once 'includes/db_connect.php';
-
 // Include token refresh functionality
 require_once 'token_refresh.php';
 
