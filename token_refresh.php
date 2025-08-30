@@ -62,10 +62,17 @@ function refreshKingsChatToken() {
     } 
     // If not in session, try to get it from the config file
     else if (file_exists(KC_CONFIG_FILE)) {
-        $config = json_decode(file_get_contents(KC_CONFIG_FILE), true);
-        if (is_array($config) && isset($config['refresh_token'])) {
-            $refreshToken = $config['refresh_token'];
-            error_log("Using refresh token from config file");
+        $configContent = file_get_contents(KC_CONFIG_FILE);
+        if ($configContent !== false && !empty(trim($configContent))) {
+            $config = json_decode($configContent, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($config) && isset($config['refresh_token'])) {
+                $refreshToken = $config['refresh_token'];
+                error_log("Using refresh token from config file");
+            } else {
+                error_log("Failed to decode config file JSON: " . json_last_error_msg());
+            }
+        } else {
+            error_log("Failed to read config file or file is empty");
         }
     }
     
@@ -86,8 +93,20 @@ function refreshKingsChatToken() {
 
     $response = shell_exec($command);
 
+    // Check if the response is valid before decoding
+    if ($response === null || $response === false || empty(trim($response))) {
+        error_log("Failed to execute token refresh command or received empty response");
+        return false;
+    }
+
     // Check if the response contains an access token
     $responseData = json_decode($response, true);
+
+    // Check for JSON decode errors
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log("Failed to decode JSON response: " . json_last_error_msg() . ". Response: " . $response);
+        return false;
+    }
 
     if ($responseData && isset($responseData['access_token'])) {
         // Extract the access token and other data
@@ -103,20 +122,25 @@ function refreshKingsChatToken() {
 
         // Update the config file
         if (file_exists(KC_CONFIG_FILE)) {
-            $config = json_decode(file_get_contents(KC_CONFIG_FILE), true);
-            if (is_array($config)) {
-                $config['access_token'] = $accessToken;
-                $config['expires_at'] = $expiresAt;
-                $result = file_put_contents(KC_CONFIG_FILE, json_encode($config, JSON_PRETTY_PRINT));
-                if ($result !== false) {
-                    error_log("Updated token in config file successfully");
+            $configContent = file_get_contents(KC_CONFIG_FILE);
+            if ($configContent !== false && !empty(trim($configContent))) {
+                $config = json_decode($configContent, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($config)) {
+                    $config['access_token'] = $accessToken;
+                    $config['expires_at'] = $expiresAt;
+                    $result = file_put_contents(KC_CONFIG_FILE, json_encode($config, JSON_PRETTY_PRINT));
+                        if ($result !== false) {
+                            error_log("Updated token in config file successfully");
+                        } else {
+                            error_log("Failed to write to config file: " . KC_CONFIG_FILE);
+                        }
+                    } else {
+                        error_log("Invalid config format in file: " . KC_CONFIG_FILE);
+                    }
                 } else {
-                    error_log("Failed to write to config file: " . KC_CONFIG_FILE);
+                    error_log("Failed to read config file or file is empty");
                 }
             } else {
-                error_log("Invalid config format in file: " . KC_CONFIG_FILE);
-            }
-        } else {
             error_log("Config file does not exist: " . KC_CONFIG_FILE);
             
             // Get the user ID from the session if available

@@ -18,11 +18,14 @@ ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/error.log');
 
-// Include database connection
-require_once 'includes/db_connect.php';
+
+
 
 // Include token refresh functionality
 require_once 'token_refresh.php';
+
+// Include welcome message functionality
+require_once 'send_welcome_message.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['kc_access_token'])) {
@@ -31,6 +34,8 @@ if (!isset($_SESSION['kc_access_token'])) {
 }
 
 // Check if token needs refreshing and refresh it if needed
+// Temporarily disable token refresh to prevent redirect loops
+/*
 if (needsTokenRefresh()) {
     $refreshed = refreshKingsChatToken();
     if (!$refreshed) {
@@ -41,76 +46,22 @@ if (needsTokenRefresh()) {
     }
     error_log("Token refreshed successfully.");
 }
+*/
 
 // Get user data from session
 $userData = isset($_SESSION['kc_user']['profile']['user']) ? $_SESSION['kc_user']['profile']['user'] : null;
 $userEmail = isset($_SESSION['kc_user']['profile']['email']['address']) ? $_SESSION['kc_user']['profile']['email']['address'] : null;
 $userId = $userData['_id'] ?? null;
 
-// Ensure user exists in our database
-if ($userId) {
-    $user = getUserById($userId);
-    if (!$user) {
-        // Create user if doesn't exist
-        $username = $userData['username'] ?? '';
-        $email = $userEmail ?? '';
-        createUser($userId, $username, $email);
-    }
-}
+// Database functionality removed - no SQL server available
 
-// Handle form submissions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'add_task':
-                if (!empty($_POST['title']) && $userId) {
-                    $title = trim($_POST['title']);
-                    $description = trim($_POST['description'] ?? '');
-                    $dueDate = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
-                    $priority = in_array($_POST['priority'] ?? 'medium', ['low', 'medium', 'high']) ? $_POST['priority'] : 'medium';
-                    
-                    if (createTask($userId, $title, $description, $dueDate, $priority)) {
-                        $_SESSION['success_message'] = 'Task added successfully!';
-                        // Add notification
-                        addNotification($conn->insert_id, $userId, "Task '$title' has been created");
-                    } else {
-                        $error = 'Failed to add task. Please try again.';
-                    }
-                } else {
-                    $error = 'Title is required';
-                }
-                break;
-                
-            case 'update_status':
-                if (isset($_POST['task_id'], $_POST['status']) && $userId) {
-                    $taskId = (int)$_POST['task_id'];
-                    $status = in_array($_POST['status'], ['pending', 'in_progress', 'completed', 'overdue']) ? 
-                              $_POST['status'] : 'pending';
-                    
-                    if (updateTaskStatus($taskId, $status, $userId)) {
-                        echo json_encode(['success' => true]);
-                        exit;
-                    }
-                }
-                echo json_encode(['success' => false]);
-                exit;
-        }
-    }
-}
+// Task management functionality removed - no SQL server available
 
-// Get tasks for the current user
+// Task and notification functionality removed - no SQL server available
 $pendingTasks = [];
 $inProgressTasks = [];
 $completedTasks = [];
-
-if ($userId) {
-    $pendingTasks = getUserTasks($userId, 'pending');
-    $inProgressTasks = getUserTasks($userId, 'in_progress');
-    $completedTasks = getUserTasks($userId, 'completed');
-    
-    // Get recent notifications
-    $notifications = getUserNotifications($userId, 5);
-}
+$notifications = [];
 
 // Get success message from session and clear it
 $success = $_SESSION['success_message'] ?? '';
@@ -119,25 +70,38 @@ unset($_SESSION['success_message']);
 // Get error message if any
 $error = $_GET['error'] ?? '';
 
+// Welcome message functionality temporarily disabled to prevent issues
+/*
 // Check if this is a fresh login (indicated by auth parameter in URL)
 if (isset($_GET['auth']) && $userData && isset($userData['user_id'])) {
-    // Send welcome message to the user
+    // Send welcome message to the user (non-blocking)
     $recipientId = $userData['user_id'];
     $recipientName = isset($userData['name']) ? $userData['name'] : 'User';
 
     // Log the attempt to send a welcome message
     error_log("Attempting to send welcome message to $recipientName ($recipientId)");
 
-    // Send the welcome message
-    $messageSent = sendWelcomeMessage($recipientId, $recipientName);
+    // Send the welcome message in a non-blocking way
+    try {
+        // Set a short timeout to prevent blocking
+        set_time_limit(5);
+        $messageSent = sendWelcomeMessage($recipientId, $recipientName);
 
-    // Log the result
-    if ($messageSent) {
-        error_log("Welcome message sent successfully to $recipientName ($recipientId)");
-    } else {
-        error_log("Failed to send welcome message to $recipientName ($recipientId)");
+        // Log the result
+        if ($messageSent) {
+            error_log("Welcome message sent successfully to $recipientName ($recipientId)");
+        } else {
+            error_log("Failed to send welcome message to $recipientName ($recipientId)");
+        }
+    } catch (Exception $e) {
+        // Log the error but don't block the dashboard
+        error_log("Welcome message failed with exception: " . $e->getMessage());
+    } finally {
+        // Reset time limit back to the original value
+        set_time_limit(3600);
     }
 }
+*/
 
 // Fetch contacts for message sending
 $contacts = [];
@@ -411,7 +375,7 @@ try {
                                     </svg>
                                     My Contacts
                                 </button>
-                                <button type="button" id="searchTab" class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 text-gray-600 hover:text-gray-800">
+                                <button type="button" id="searchTab" class="flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 text-purple-600 bg-purple-50 hover:bg-purple-700 hover:text-white">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
@@ -455,7 +419,7 @@ try {
                         <div id="userSearchSection" class="mb-4 hidden">
                             <div class="relative">
                                 <input type="text" id="userSearchInput"
-                                       class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-kc-blue focus:border-kc-blue transition-all duration-200"
+                                       class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all duration-200"
                                        placeholder="Search for users by username (e.g., john, mary, test)">
                                 <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -923,14 +887,14 @@ try {
 
         <!-- Search Users Section -->
         <div class="bg-white rounded-xl shadow-lg border-0 overflow-hidden mb-8 transition-all duration-300 hover:shadow-xl">
-            <div class="px-8 py-6 bg-gradient-to-r from-purple-600 to-purple-700">
+            <div class="px-8 py-6 bg-gradient-to-r from-blue-600 to-blue-700">
                 <h2 class="text-2xl font-bold text-white flex items-center gap-3">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     Search KingsChat Users
                 </h2>
-                <p class="text-purple-100 mt-2">Find and connect with KingsChat users by username</p>
+                <p class="text-blue-100 mt-2">Find and connect with KingsChat users by username</p>
             </div>
 
             <div class="p-8">
@@ -942,12 +906,12 @@ try {
                                 <div class="flex-1">
                                     <label for="searchQuery" class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
                                     <input type="text" id="searchQuery" name="searchQuery"
-                                           class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                                           class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                                            placeholder="Enter username (e.g., john, mary, test)">
                                 </div>
                                 <div class="flex items-end">
                                     <button type="submit"
-                                            class="bg-purple-600 text-white py-3 px-8 rounded-lg hover:bg-purple-700 font-medium transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2">
+                                            class="bg-blue-600 text-white py-3 px-8 rounded-lg hover:bg-blue-700 font-medium transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                         </svg>

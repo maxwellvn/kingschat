@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>KingsChat Callback</title>
+    <script>
+        // Immediately redirect to the main app with the callback parameters
+        (function() {
+            // Get the current URL with all parameters
+            const currentUrl = window.location.href;
+            const urlObj = new URL(currentUrl);
+            
+            // Check if we have tokens in the URL fragment or query
+            let redirectUrl = '/';
+            
+            if (urlObj.hash) {
+                // Redirect to main app with the hash fragment
+                redirectUrl = '/' + urlObj.hash;
+            } else if (urlObj.search) {
+                // Convert query parameters to hash fragment for Flutter
+                const params = new URLSearchParams(urlObj.search);
+                const accessToken = params.get('access_token');
+                if (accessToken) {
+                    const hashParams = new URLSearchParams();
+                    for (const [key, value] of params) {
+                        hashParams.set(key, value);
+                    }
+                    redirectUrl = '/#' + hashParams.toString();
+                }
+            }
+            
+            // Redirect to the main Flutter app
+            window.location.replace(redirectUrl);
+        })();
+    </script>
+</head>
+<body>
+    <p>Redirecting...</p>
+</body>
+</html>

@@ -244,6 +244,93 @@ function sendMessage($recipientId, $message, $config) {
     }
 }
 
+// Handle form submission for markup message testing
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'test_markup_message') {
+    // Get form data
+    $recipientId = trim($_POST['markup_recipient_id']);
+    $testType = trim($_POST['markup_test_type']);
+    $messageContent = trim($_POST['markup_message_content']);
+
+    // Validate input
+    if (empty($recipientId)) {
+        $error = 'Recipient ID is required for markup testing';
+        header('Location: bulk_message_test.php?status=error&msg=' . urlencode($error));
+        exit;
+    } elseif (empty($messageContent)) {
+        $error = 'Message content is required for markup testing';
+        header('Location: bulk_message_test.php?status=error&msg=' . urlencode($error));
+        exit;
+    } else {
+        // Test markup message
+        $result = sendMessage($recipientId, $messageContent, $config);
+        
+        if ($result['success']) {
+            $message = "Markup test message sent successfully! Check KingsChat to see if formatting is rendered. Test Type: " . htmlspecialchars($testType);
+            header('Location: bulk_message_test.php?status=success&msg=' . urlencode($message));
+        } else {
+            $error = $result['message'];
+            header('Location: bulk_message_test.php?status=error&msg=' . urlencode($error));
+        }
+        exit;
+    }
+}
+
+// Handle AJAX request for sending multiple markup tests
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_all_markup_tests') {
+    header('Content-Type: application/json');
+    
+    $recipientId = trim($_POST['recipient_id']);
+    
+    if (empty($recipientId)) {
+        echo json_encode(['success' => false, 'message' => 'Recipient ID is required']);
+        exit;
+    }
+    
+    // Define test messages
+    $testMessages = [
+        'HTML Basic' => 'HTML Basic Test: <b>Bold text</b>, <i>Italic text</i>, <u>Underlined text</u>, <strong>Strong text</strong>, <em>Emphasized text</em>',
+        'HTML Links' => 'HTML Links Test: <a href="https://kingschat.online">KingsChat Website</a>, <a href="mailto:test@example.com">Email Link</a>',
+        'HTML Lists' => 'HTML Lists Test: <ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>',
+        'HTML Formatting' => 'HTML Formatting Test: <p>Paragraph</p><br>Line break<br/><div>Div element</div><span>Span element</span>',
+        'Markdown Basic' => 'Markdown Basic Test: **Bold text**, *Italic text*, __Underlined text__, `Code text`',
+        'Markdown Headers' => 'Markdown Headers Test: # Header 1\n## Header 2\n### Header 3',
+        'Markdown Lists' => 'Markdown Lists Test: * Item 1\n* Item 2\n* Item 3\n\n1. Numbered 1\n2. Numbered 2\n3. Numbered 3',
+        'Markdown Links' => 'Markdown Links Test: [KingsChat Website](https://kingschat.online), [Email Link](mailto:test@example.com)',
+        'Special Characters' => 'Special Characters Test: &amp; &lt; &gt; &quot; &#39; &copy; &reg; &trade; &nbsp;',
+        'Emoji Test' => 'Emoji Test: 😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶 😏 😒 🙄 😬 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 🥸 😎 🤓 🧐 😕 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 👾 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾'
+    ];
+    
+    $results = [];
+    $successCount = 0;
+    $errorCount = 0;
+    
+    foreach ($testMessages as $testName => $testMessage) {
+        $result = sendMessage($recipientId, $testMessage, $config);
+        
+        if ($result['success']) {
+            $results[] = ['test' => $testName, 'status' => 'success', 'message' => 'Sent successfully'];
+            $successCount++;
+        } else {
+            $results[] = ['test' => $testName, 'status' => 'error', 'message' => $result['message']];
+            $errorCount++;
+        }
+        
+        // Add a small delay between messages
+        usleep(500000); // 0.5 seconds
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'results' => $results,
+        'summary' => [
+            'total' => count($testMessages),
+            'success' => $successCount,
+            'error' => $errorCount
+        ]
+    ]);
+    exit;
+}
+
 // Handle form submission for sending bulk messages
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_bulk') {
     // Get form data
@@ -764,7 +851,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
+    <div class="bg-white rounded-xl shadow-lg border-0 overflow-hidden mb-8 transition-all duration-300 hover:shadow-xl">
+        <div class="px-8 py-6 bg-gradient-to-r from-purple-600 to-purple-700">
+            <h2 class="text-2xl font-bold text-white">Markup Message Test</h2>
+            <p class="text-purple-100 mt-2">Test if the KingsChat API supports HTML/markup formatting in messages</p>
+        </div>
 
+        <div class="p-8">
+            <div class="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg mb-6">
+                <div class="flex items-center">
+                    <svg class="h-5 w-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <span class="text-sm font-medium">
+                        Experimental Feature: Testing if the KingsChat API supports markup formatting (HTML, markdown, etc.)
+                    </span>
+                </div>
+            </div>
+
+            <form id="markupMessageForm" method="post" class="space-y-6">
+                <input type="hidden" name="action" value="test_markup_message">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="markup_recipient_id" class="block text-sm font-medium text-gray-700 mb-1">Test Recipient ID</label>
+                        <input type="text" id="markup_recipient_id" name="markup_recipient_id" required
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                               placeholder="Enter recipient user ID">
+                        <p class="mt-1 text-xs text-gray-500">User ID to send test markup messages to</p>
+                    </div>
+
+                    <div>
+                        <label for="markup_test_type" class="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
+                        <select id="markup_test_type" name="markup_test_type" required
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                            <option value="html">HTML Markup</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="custom">Custom Test</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Type of markup formatting to test</p>
+                    </div>
+                </div>
+
+                <div id="markupPresets" class="space-y-4">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-3">Test Presets</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="html-basic">
+                                HTML Basic: Bold & Italic
+                            </button>
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="html-links">
+                                HTML Links
+                            </button>
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="markdown-basic">
+                                Markdown Basic
+                            </button>
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="markdown-lists">
+                                Markdown Lists
+                            </button>
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="special-chars">
+                                Special Characters
+                            </button>
+                            <button type="button" class="preset-btn text-left px-3 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm" data-preset="emoji-test">
+                                Emoji Test
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="markup_message_content" class="block text-sm font-medium text-gray-700 mb-1">Test Message Content</label>
+                    <textarea id="markup_message_content" name="markup_message_content" rows="6" required
+                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 sm:text-sm font-mono"
+                              placeholder="Enter your markup test message here..."></textarea>
+                    <p class="mt-1 text-xs text-gray-500">Message content with markup formatting to test</p>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-blue-800 mb-2">Test Results Guide</h4>
+                    <ul class="text-sm text-blue-700 space-y-1">
+                        <li>• If markup is supported, formatting should appear in the received message</li>
+                        <li>• If not supported, you'll see raw markup code (e.g., &lt;b&gt;text&lt;/b&gt; or **text**)</li>
+                        <li>• Check the received message in KingsChat to see how it renders</li>
+                    </ul>
+                </div>
+
+                <div class="flex space-x-4">
+                    <button type="submit" class="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                        </svg>
+                        Send Markup Test
+                    </button>
+                    <button type="button" id="sendAllMarkupTests" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-all duration-200 shadow-sm hover:shadow flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Send All Tests
+                    </button>
+                </div>
+            </form>
+
+            <div id="markupTestResults" class="mt-6 hidden">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-3">Test Results</h4>
+                    <div id="markupTestResultsContent" class="space-y-2">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Auto-hide alerts after 5 seconds
@@ -1189,6 +1386,142 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (!confirm(confirmMessage)) {
                 e.preventDefault();
                 return false;
+            }
+        });
+
+        // Markup message testing functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const markupTestTypeSelect = document.getElementById('markup_test_type');
+            const markupMessageContent = document.getElementById('markup_message_content');
+            const presetButtons = document.querySelectorAll('.preset-btn');
+            const sendAllMarkupTestsBtn = document.getElementById('sendAllMarkupTests');
+            const markupTestResults = document.getElementById('markupTestResults');
+            const markupTestResultsContent = document.getElementById('markupTestResultsContent');
+
+            // Test message presets
+            const testPresets = {
+                'html-basic': 'HTML Basic Test: <b>Bold text</b>, <i>Italic text</i>, <u>Underlined text</u>, <strong>Strong text</strong>, <em>Emphasized text</em>',
+                'html-links': 'HTML Links Test: <a href="https://kingschat.online">KingsChat Website</a>, <a href="mailto:test@example.com">Email Link</a>',
+                'markdown-basic': 'Markdown Basic Test: **Bold text**, *Italic text*, __Underlined text__, `Code text`',
+                'markdown-lists': 'Markdown Lists Test: * Item 1\\n* Item 2\\n* Item 3\\n\\n1. Numbered 1\\n2. Numbered 2\\n3. Numbered 3',
+                'special-chars': 'Special Characters Test: &amp; &lt; &gt; &quot; &#39; &copy; &reg; &trade; &nbsp;',
+                'emoji-test': 'Emoji Test: 😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑'
+            };
+
+            // Handle preset button clicks
+            presetButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const presetKey = this.dataset.preset;
+                    if (testPresets[presetKey]) {
+                        markupMessageContent.value = testPresets[presetKey].replace(/\\n/g, '\\n');
+                        
+                        // Update test type based on preset
+                        if (presetKey.startsWith('html-')) {
+                            markupTestTypeSelect.value = 'html';
+                        } else if (presetKey.startsWith('markdown-')) {
+                            markupTestTypeSelect.value = 'markdown';
+                        } else {
+                            markupTestTypeSelect.value = 'custom';
+                        }
+                    }
+                });
+            });
+
+            // Handle "Send All Tests" button
+            sendAllMarkupTestsBtn.addEventListener('click', async function() {
+                const recipientId = document.getElementById('markup_recipient_id').value.trim();
+                
+                if (!recipientId) {
+                    alert('Please enter a recipient ID first.');
+                    return;
+                }
+
+                if (!confirm('This will send 10 different test messages to test various markup formats. Continue?')) {
+                    return;
+                }
+
+                // Disable button and show loading
+                this.disabled = true;
+                this.innerHTML = '<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending...';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'send_all_markup_tests');
+                    formData.append('recipient_id', recipientId);
+
+                    const response = await fetch('bulk_message_test.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        displayTestResults(result.results, result.summary);
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('Error sending tests:', error);
+                    alert('Error sending tests: ' + error.message);
+                } finally {
+                    // Restore button
+                    this.disabled = false;
+                    this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> Send All Tests';
+                }
+            });
+
+            // Display test results
+            function displayTestResults(results, summary) {
+                markupTestResults.classList.remove('hidden');
+                
+                let html = `
+                    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h5 class="font-semibold text-blue-800 mb-2">Test Summary</h5>
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-600">Total Tests:</span>
+                                <span class="font-medium text-blue-800">${summary.total}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Successful:</span>
+                                <span class="font-medium text-green-600">${summary.success}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Failed:</span>
+                                <span class="font-medium text-red-600">${summary.error}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                results.forEach(result => {
+                    const statusClass = result.status === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800';
+                    const statusIcon = result.status === 'success' ? '✓' : '✗';
+                    
+                    html += `
+                        <div class="p-3 ${statusClass} border rounded-lg mb-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <span class="font-mono text-sm mr-2">${statusIcon}</span>
+                                    <span class="font-medium">${escapeHtml(result.test)}</span>
+                                </div>
+                                <span class="text-sm">${escapeHtml(result.message)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg">
+                        <p class="text-sm">
+                            <strong>Next Steps:</strong> Check the recipient's KingsChat messages to see how the formatting appears. 
+                            If markup is supported, you should see formatted text. If not, you'll see raw markup code.
+                        </p>
+                    </div>
+                `;
+
+                markupTestResultsContent.innerHTML = html;
             }
         });
     </script>

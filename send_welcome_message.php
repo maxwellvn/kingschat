@@ -44,11 +44,13 @@ function sendWelcomeMessage($recipientId, $recipientName = 'User') {
             ]
         ];
 
-        // Initialize cURL session
+        // Initialize cURL session with short timeout
         $ch = curl_init($sendUrl);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 3, // 3 second timeout
+            CURLOPT_CONNECTTIMEOUT => 2, // 2 second connection timeout
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $accessToken,
                 'Content-Type: application/json',
@@ -60,11 +62,18 @@ function sendWelcomeMessage($recipientId, $recipientName = 'User') {
         // Execute the request
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        // Check for cURL errors first
+        if ($curlError) {
+            error_log("Welcome message cURL error: " . $curlError);
+            return false;
+        }
 
         // Log the response
         error_log("Welcome message response code: " . $httpCode);
-        error_log("Welcome message response body: " . $response);
-
+        
         // If unauthorized, try refreshing token once more and retry
         if ($httpCode === 401) {
             error_log('Received 401 Unauthorized when sending welcome message. Attempting to refresh token and retry...');
@@ -72,11 +81,13 @@ function sendWelcomeMessage($recipientId, $recipientName = 'User') {
                 // Get the new access token
                 $accessToken = $_SESSION['kc_access_token'];
 
-                // Retry the API call with the new token
+                // Retry the API call with the new token (with timeout)
                 $ch = curl_init($sendUrl);
                 curl_setopt_array($ch, [
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_POST => true,
+                    CURLOPT_TIMEOUT => 3, // 3 second timeout
+                    CURLOPT_CONNECTTIMEOUT => 2, // 2 second connection timeout
                     CURLOPT_HTTPHEADER => [
                         'Authorization: Bearer ' . $accessToken,
                         'Content-Type: application/json',
@@ -87,10 +98,16 @@ function sendWelcomeMessage($recipientId, $recipientName = 'User') {
 
                 $response = curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
                 curl_close($ch);
 
+                // Check for cURL errors on retry
+                if ($curlError) {
+                    error_log("Welcome message retry cURL error: " . $curlError);
+                    return false;
+                }
+
                 error_log("Welcome message retry response code: " . $httpCode);
-                error_log("Welcome message retry response body: " . $response);
             }
         }
 

@@ -254,8 +254,8 @@
                     debugAuth('Got token from redirect, setting cookie and redirecting');
                     // Store the token in a session cookie
                     document.cookie = "firebase_token=" + idToken + "; path=/";
-                    // Redirect to index.php
-                    window.location.href = 'index.php';
+                    // Redirect to callback.html
+                    window.location.href = 'flutter/kingschat_web/web/callback.html';
                 });
             }
         }).catch((error) => {
